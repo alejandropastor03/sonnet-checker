@@ -1,0 +1,119 @@
+---
+title: "poeta_web"
+output: pdf_document
+date: '2022-12-21'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+url <- "https://www.angelfire.com/in/alga/gongora.html"
+lines <- readLines(url, encoding = "UTF-8", warn = FALSE)
+```
+
+````{r}
+library(stringr) #Para que deje usar str_split()
+
+#Hay algunos casos en los que los sonetos aparecen todos en la misma linea, divididos con etiquetas <br> o en contadas ocasiones con </h4>, por tanto se dividen las lineas teniendo en cuenta estas etiquetas
+for (i in (1:length(lines))){
+  lines[i] <- str_split(lines[i], "<br>|</h4>")
+}
+
+#Deshacemos las sublistas
+lines <- unlist(lines)
+
+#Quitar los títulos
+titulos <- grep("[H|h]1|[H|h]2|[H|h]3|[H|h]4|title", lines)
+for (i in titulos){
+  lines[i] <- ""
+}
+
+#Eliminamos líneas en blanco
+texto = c()
+for (i in (1:length(lines))){
+  if (lines[i] != ""){
+    texto <- c(texto, lines[i])
+  }
+}
+
+#Quitar las etiquetas de html
+lines <- trimws(gsub("<[^<>]*>","", lines))
+
+#Traducir elementos &Xacute
+library(stringi)
+traduc <- list(c("&aacute;", "á"),
+                c("&Aacute;", "Á"),
+                c("&eacute;", "e"),
+                c("&Eacute;", "É"),
+                c("&iacute;", "í"),
+                c("&Iacute;", "Í"),
+                c("&oacute;", "ó"),
+                c("&Oacute;", "Ó"),
+                c("&uacute;", "ú"),
+                c("&Uacute;", "Ú"),
+                c("&ntilde;", "ñ"),
+                c("&Ntilde;", "Ñ"),
+                c("&iquest;", "¿"),
+                c("&iexcl;", "¡"),
+                c("&laquo;", "«"),
+                c("&raquo;", "»"),
+                c("&#191;", "¿"),
+                c("&#161;", "¡"),
+                c("&uuml;", "ü"),
+                c("&iuml;", "ï"),
+               c("Aacute;", "Á"),
+                c("  ", " ")
+)
+lines <- stri_replace_all_regex(lines,
+                    pattern=unlist(lapply(traduc,function(x){x[1]})),
+                    replacement=unlist(lapply(traduc,function(x){x[2]})),
+                    vectorize=FALSE)
+
+#Eliminar las líneas en blanco y aquellas que acaban por "{", o "}", pues es código. Tb aquellas empezadas por "/" y terminadas en ">" pero que no son etiquetas html
+lines[grep("\\{$|}$|^/|>$", lines)] <- ""
+
+#Nos damos cuenta que en esta web todo el texto se acumula en la última línea (esto pasa en algunos casos, en otros los versos estan separados en líneas), pero como la idea es tratar de generalizar el programa al máximo posible, terminamos de limpiar el resto de lineas y eliminamos las que estan en blanco. Tambien se eliminan las que contienen números
+lines[grep("^if|\\+$|\\/$", lines)] <- ""
+
+#Eliminamos líneas en blanco
+texto = c()
+for (i in (1:length(lines))){
+  if (lines[i] != ""){
+    texto <- c(texto, lines[i])
+  }
+}
+lines <- texto
+
+#Ahora hay que eliminar las líneas terminadas en ";", pues son código. Aunque también podría darse el caso que fuesen signo de puntuación. Teniendo en cuenta que ya hemos eliminado el resto de código y la probabilidad de que un verso termine en ; es baja, consideraremos que es signo de puntuación si las dos líneas por encima o por debajo no terminan en ;
+
+lineas_punto_coma <- as.integer(grep(";", lines))
+for (i in (1:length(lineas_punto_coma))){
+  if (i==1|i==2){
+    if (lineas_punto_coma[i]+1==lineas_punto_coma[i+1]&lineas_punto_coma[i+1]+1==lineas_punto_coma[i+2]){
+      lines[lineas_punto_coma[i]] <- ""
+    }
+  }else{
+    if (lineas_punto_coma[i]-1==lineas_punto_coma[i-1]&lineas_punto_coma[i-1]-1==lineas_punto_coma[i-2]){
+      lines[lineas_punto_coma[i]] <- ""
+    }
+  }
+}
+
+#Eliminamos líneas en blanco
+texto = c()
+for (i in (1:length(lines))){
+  if (lines[i] != ""){
+    texto <- c(texto, lines[i])
+  }
+}
+````
+
+````{r}
+#Ahora que tenemos el texto bastante limpio, hay que guardar bloques de 14 lineas en un archivo .txt y aplicar poeta.rmd para comprobar si se trata de un soneto
+texto
+con2 <- file( description = "soneto_web.txt", open = "wt")
+writeLines(texto, con2, sep="\n")
+close(con2)
+````

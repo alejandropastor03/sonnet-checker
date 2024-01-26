@@ -1,0 +1,210 @@
+---
+title: "poeta_interactivo"
+output: pdf_document
+date: '2022-12-23'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Cargamos el diccionario a utilizar
+````{r}
+con <- file(description = "dic_es.txt", open = 'rt', encoding= 'UTF-8')
+diccionario <- readLines(con)
+close(con)
+````
+
+````{r}
+#Cargamos el diccionario a utilizar
+library(sylly)
+library(sylly.es)
+con <- file(description = "dic_es.txt", open = 'rt', encoding= 'UTF-8')
+diccionario <- readLines(con)
+close(con)
+diccionario <- strsplit(diccionario, " ")
+#diccionario
+
+silabasDic <- function(dic){
+  silabas <- list()
+  for (i in 1:1000){ #establecemos un límite
+    silabas[i] <-  hyphen(dic[[i]], hyph.pattern="es", min.length = 1, quiet= TRUE)
+  }
+  silabas
+}
+
+silabas_dic <- silabasDic(diccionario)
+
+#lista con el número de sílabas del diccionario
+num_silabas_dic <- list()
+for (i in 1:100){
+    num_silabas_dic[[i]] <- unlist(silabas_dic[[i]]@desc[["num.syll"]])
+}
+num_silabas_dic <- unlist(num_silabas_dic)
+````
+````{r}
+#hacemos que el usurario pueda introducir un soneto verso por verso
+verso = list() 
+for (i in 1:14){
+  verso[i] <- readline(prompt = "Introduce un   verso --> ")
+}
+````
+
+
+````{r}
+#Dividimos las palabras de cada verso en sílabas
+contarSilabas <- function(estrofa){
+  palabras <- list()
+  silabas <- list()
+  for (i in 1:14){
+    palabras[[i]] <- unlist(strsplit(verso[[i]], " "))
+    silabas[[i]] <-  hyphen(unlist(palabras[[i]]), hyph.pattern="es", min.length = 1, quiet= TRUE)
+  }
+  silabas
+}
+silabas <- contarSilabas(unlist(verso))
+````
+
+````{r}
+#Guardamos en una lista el número de síalabas de la última palabra de cada verso (es lo que nos interesa)
+num_silabas <- list()
+for (i in 1:14){
+    num <- unlist(silabas[[i]]@hyphen[["syll"]])
+    num_silabas[[i]] <- num[length(num)]
+}
+num_silabas <- unlist(num_silabas)
+````
+
+
+````{r}
+#Obtenemos la última palabra de cada verso
+ultima_palabra <- function(silabas){
+  lista_ultimas <- list()
+  for (i in 1:14){
+    verso <- silabas[[i]]@hyphen[["word"]]
+    lista_ultimas[[i]] <- verso[length(verso)]
+  }
+  lista_ultimas
+}
+ultimas_total <- unlist(ultima_palabra(silabas))
+````
+
+
+````{r}
+#Obtenemos el tipo de palabra (aguda, llana o esdrújula) de la última palabra de cada verso
+tipo_palabra_recuento <- function(ultima, recuento){
+  #buscamos si es esdrújula, llana o aguda
+  ultima <- unlist(strsplit(ultima, "-"))
+  
+  #si lleva tilde
+  tilde <- grep(pattern = "[áéíóú]", rev(ultima))
+  
+  aguda_notilde <- grep(pattern = "[^nsaeiou]$", rev(ultima[1]))
+  
+  tipo_palabra <- c("llana")
+  if (length(tilde) != 0){
+    if (tilde >= 3){ 
+      recuento <- recuento -1 #palabra esdrújula
+      tipo_palabra = "esdrujula"
+    }
+    if (tilde==1){
+      recuento <- recuento + 1 #palabra aguda
+      tipo_palabra <- c("aguda")
+    }
+  }else
+  {
+    if (length(aguda_notilde) != 0){
+      recuento <- recuento +1 #palabra aguda que no termina en vocal, n o s
+      tipo_palabra <- c("aguda")
+    }
+  }
+  sol <- c(recuento, tipo_palabra)
+  }
+````
+
+
+````{r}
+#guardamos el tipo de palabra en una lista
+silabas_final <- list()
+for (j in 1:14){
+    ultima <- ultimas_total[j]
+    recuento <- num_silabas[j]
+    silabas_final[[j]] <- tipo_palabra_recuento(ultima, recuento)[1]
+}
+````
+
+
+````{r}
+library(stringr)
+#Obtenemos la terminación de la palabra desde la vocal tónica
+vocal_tonica <- function(ultima, recuento){
+  tipo_palabra <- tipo_palabra_recuento(ultima, recuento)[2]
+  if (tipo_palabra == "esdrujula"){
+    tonica <- str_match(pattern = "[áéíóú].*", ultima)
+    tonica <- gsub("-", "", tonica)
+  }else if (tipo_palabra == "aguda"){
+    ultima <- unlist(strsplit(ultima, "-"))
+    tonica <- str_match(pattern = "[aeiouáéíóú].*", rev(ultima)[1])
+    tonica <- gsub("-", "", tonica)
+  }else{
+    ultima <- gsub("-", "", ultima)
+    tonica <- str_match(pattern = "[aeiou][^(aeiou)]{1,4}[aeiou][^aeiou]{0,2}$|[aeiou][aeiou][^aeiou]{0,2}$", ultima)
+  }
+  tonica
+}
+````
+
+```{r}
+#guardamos tal información en una lista
+tonicas_estrofas <- list()
+for (j in 1:14){
+    ultima <- ultimas_total[j]
+    recuento <- num_silabas[j]
+    tonicas_estrofas[[j]] <- unlist(vocal_tonica(ultima, recuento))
+}
+```
+
+COmprobar si esas palabras tienen el mismo nº de sílabas que la ultima
+
+```{r}
+#buscamos en el diccionario palabras que cumplan la métrica
+cumple_metrica <- list()
+for (i in 1:14){
+  palabras <- list()
+  cont=1
+  for (e in grep(pattern=num_silabas[i], num_silabas_dic)){
+    palabras[cont] <- diccionario[e]
+    cont=cont+1
+}
+  cumple_metrica[[i]] <- unlist(palabras) 
+  
+}
+
+#Buscamos en el diccionario palabras que cumplan la rima
+cumple_rima <- list()
+for (i in 1:14){
+  tonica_terminacion <- tonicas_estrofas[i]
+  tonica_terminacion <- gsub(",","",tonica_terminacion)
+  tonica <- paste(tonica_terminacion, "$", sep="")
+  palabras2 <- list()
+  cont = 1
+  for (e in grep(tonica, diccionario)){
+    palabras2[cont] <- diccionario[e]
+    cont=cont+1
+}
+  cumple_rima[i] <- unlist(palabras2) 
+}
+```
+
+```{r}
+for (i in 1:14){
+      cat('Opciones de palabras en el verso para cumplir la métrica', i, '-->', unlist(cumple_metrica[[i]]))
+      print("")
+}
+
+for (i in 1:14){
+      cat('Opciones de palabras en el verso para cumplir la rima', i, '-->', unlist(cumple_rima[[i]]))
+      print("")
+      
+}
+```
